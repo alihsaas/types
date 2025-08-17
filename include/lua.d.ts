@@ -223,6 +223,55 @@ declare namespace TS {
 							? Callback
 							: never;
 	}>;
+
+	type ValidSpec =
+		| "s" | "q"
+		| "d" | "i" | "u"
+		| "o"
+		| "x" | "X"
+		| "c"
+		| "f" | "e" | "E"
+		| "g" | "G"
+		| "*";
+
+	type SpecifierToType<S extends string> =
+		S extends "s" | "q" ? string :
+		S extends "d" | "i" | "u" | "o" | "x" | "X" | "c" ? number :
+		S extends "f" | "e" | "E" | "g" | "G" ? number :
+		S extends "*" ? any :
+		never;
+
+	type FlagChar = "-" | "+" | "0" | " " | "#";
+	type DigitChar = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+	type PrecisionDot = ".";
+	type SkipChar = FlagChar | DigitChar | PrecisionDot;
+
+	type ArgsForFormat<
+		S extends string,
+		Acc extends any[] = [],
+		State extends "Normal" | "InPercent" = "Normal"
+	> =
+		string extends S
+			? any[]
+		: S extends ""
+			? State extends "InPercent" ? never : Acc
+		: State extends "Normal"
+			? S extends `%%${infer Rest}`
+				? ArgsForFormat<Rest, Acc, "Normal">
+			: S extends `%${infer Rest}`
+				? ArgsForFormat<Rest, Acc, "InPercent">
+			: S extends `${infer _}${infer Tail}`
+				? ArgsForFormat<Tail, Acc, "Normal">
+				: Acc
+		: State extends "InPercent"
+			? S extends `${infer First}${infer Rest}`
+				? First extends ValidSpec
+					? ArgsForFormat<Rest, [...Acc, SpecifierToType<First>], "Normal">
+				: First extends SkipChar
+					? ArgsForFormat<Rest, Acc, "InPercent">
+					: never
+			: never
+		: Acc;
 }
 
 declare namespace debug {
@@ -313,7 +362,7 @@ interface String {
 	// A capture may be a number when we use `()` to capture the location
 
 	/** Returns a formatted version of its variable number of arguments following the description given in its first argument (which must be a string). */
-	format(this: string, ...args: Array<number | string>): string;
+	format<S extends string>(this: S, ...args: TS.ArgsForFormat<S>): string;
 
 	/** Returns an iterator function that, each time it is called, returns the next captures from pattern over the string s. */
 	gmatch(this: string, pattern: string): IterableFunction<LuaTuple<Array<string | number>>>;
@@ -400,7 +449,7 @@ declare namespace string {
 	// A capture may be a number when we use `()` to capture the location
 
 	/** Returns a formatted version of its variable number of arguments following the description given in its first argument (which must be a string). */
-	function format(str: string, ...args: Array<number | string>): string;
+	function format<S extends string>(str: S, ...args: TS.ArgsForFormat<S>): string;
 
 	/** Returns an iterator function that, each time it is called, returns the next captures from pattern over the string s. */
 	function gmatch(str: string, pattern: string): IterableFunction<LuaTuple<Array<string | number>>>;
